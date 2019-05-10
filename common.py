@@ -65,6 +65,8 @@ class EP:
     #version1
     def process(df_train, param, df_test=None, trial=None, remark=None):
 
+        columns = param['columns']
+        
         assert 'y' in df_train.columns.tolist(), 'y is not in df_train'
         assert 'index' in df_train.columns.tolist(), 'index is not in df_train'
         assert 'index' not in param['columns'], 'index is in features'
@@ -105,7 +107,6 @@ class EP:
 
         scaler_cls = EP.str2class(param['scaler']['cls'])
         regressor_cls = EP.str2class(param['algorithm']['cls'])
-        columns = param['columns']
         is_output_feature_importance = param['feature_importance']['is_output']
         permutation_feature_importance = param['feature_importance']['permutation_feature_importance']
         permutation_random_state = param['feature_importance']['permutation_random_state']
