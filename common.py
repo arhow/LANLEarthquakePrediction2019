@@ -13,6 +13,7 @@ import lightgbm as lgb
 import xgboost as xgb
 from xgboost.sklearn import XGBRegressor
 import catboost as cb
+from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor, GradientBoostingRegressor
 
 import eli5
 from eli5.sklearn import PermutationImportance
