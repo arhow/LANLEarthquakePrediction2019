@@ -14,9 +14,17 @@ import xgboost as xgb
 from xgboost.sklearn import XGBRegressor
 import catboost as cb
 from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor, GradientBoostingRegressor
+from sklearn.neural_network import MLPRegressor
+from sklearn.svm import SVR
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.linear_model import LogisticRegression, Ridge, Lasso
+from fastFM import als, mcmc, sgd
+from pyfm import pylibfm
 
 import eli5
 from eli5.sklearn import PermutationImportance
+
+from models import *
 
 class EP:
 
