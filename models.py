@@ -91,7 +91,7 @@ class KerasMLPRegressor(object):
 #                 prev_val_loss = df_train_his_i.val_loss.values[0]
 #                 self.regressor.save_weights(self.chkpt)
                 
-        df_train_his.to_csv(self.base_save_dir + '/train_his.csv', index=True)
+        df_train_his.to_csv(self.base_save_dir + '/{}_train_his.csv'.format(self.alias), index=True)
             
         return df_train_his
     

@@ -19,7 +19,7 @@ from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.linear_model import LogisticRegression, Ridge, Lasso
 from fastFM import als, mcmc, sgd
-from pyfm import pylibfm
+#from pyfm import pylibfm
 
 import eli5
 from eli5.sklearn import PermutationImportance
@@ -136,7 +136,10 @@ class EP:
                 X_train = scaler.transform(X_train)
                 X_valid = scaler.transform(X_valid)
 
-            model = regressor_cls(**param['algorithm']['init'])
+            algorithm_init_param = param['algorithm']['init'].copy()
+            if 'alias' in list(algorithm_init_param.keys()):
+                algorithm_init_param['alias'] = algorithm_init_param['alias'] + '_{}'.format(fold_n)
+            model = regressor_cls(**algorithm_init_param)
             fit_param = param['algorithm']['fit'].copy()
             if 'early_stopping_rounds' in fit_param:
                 fit_param['eval_set'] = [(X_valid, y_valid)]
