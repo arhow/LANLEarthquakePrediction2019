@@ -21,6 +21,8 @@ from sklearn.linear_model import LogisticRegression, Ridge, Lasso
 from fastFM import als, mcmc, sgd
 #from pyfm import pylibfm
 
+from scipy import sparse
+
 import eli5
 from eli5.sklearn import PermutationImportance
 
@@ -61,18 +63,15 @@ class EP:
                 'fit': {
                 },
             },
-            'feature_importance': {
-                'is_output': False,
-                'permutation_feature_importance': False,
-                'permutation_random_state': 1,
-            },
+
         }
         check_param_lvl_i(param, base_param, '')
         return True
 
+    #version2=>version3 set is_output_feature_importance from args not from param 
     #version1=>version2 use all data train(train and valid) and test to fit a scaler
     #version1
-    def process(df_train, param, df_test=None, trial=None, remark=None):
+    def process(df_train, param, df_test=None, trial=None, remark=None, is_output_feature_importance=False):
 
         columns = param['columns']
         
@@ -116,9 +115,7 @@ class EP:
 
         scaler_cls = EP.str2class(param['scaler']['cls'])
         regressor_cls = EP.str2class(param['algorithm']['cls'])
-        is_output_feature_importance = param['feature_importance']['is_output']
-        permutation_feature_importance = param['feature_importance']['permutation_feature_importance']
-        permutation_random_state = param['feature_importance']['permutation_random_state']
+        permutation_random_state = 42
         
         if scaler_cls != None:
             scaler = scaler_cls()
@@ -143,6 +140,10 @@ class EP:
             fit_param = param['algorithm']['fit'].copy()
             if 'early_stopping_rounds' in fit_param:
                 fit_param['eval_set'] = [(X_valid, y_valid)]
+                
+            if 'FMRegression' in param['algorithm']['cls']:
+                X_train = sparse.csc_matrix(X_train)
+                X_valid = sparse.csc_matrix(X_valid)
             model.fit(X_train, y_train, **fit_param)
 
             y_valid_pred = model.predict(X_valid)
@@ -157,19 +158,21 @@ class EP:
                 df_feature_importances_i = pd.DataFrame({'feature': columns, 'model_weight': model.feature_importances_})
                 df_feature_importances_i = df_feature_importances_i.sort_values(by=['feature'])
                 df_feature_importances_i = df_feature_importances_i.reset_index(drop=True)
-                if permutation_feature_importance:
-                    perm = PermutationImportance(model, random_state=permutation_random_state).fit(X_valid, y_valid)
-                    df_feature_importances_i2 = eli5.explain_weights_dfs(perm, feature_names=columns, top=len(columns))[
-                        'feature_importances']
-                    df_feature_importances_i2 = df_feature_importances_i2.sort_values(by=['feature'])
-                    df_feature_importances_i2 = df_feature_importances_i2.reset_index(drop=True)
-                    df_feature_importances_i = pd.merge(df_feature_importances_i, df_feature_importances_i2, on='feature')
+
+                perm = PermutationImportance(model, random_state=permutation_random_state).fit(X_valid, y_valid)
+                df_feature_importances_i2 = eli5.explain_weights_dfs(perm, feature_names=columns, top=len(columns))[
+                    'feature_importances']
+                df_feature_importances_i2 = df_feature_importances_i2.sort_values(by=['feature'])
+                df_feature_importances_i2 = df_feature_importances_i2.reset_index(drop=True)
+                df_feature_importances_i = pd.merge(df_feature_importances_i, df_feature_importances_i2, on='feature')
                 df_feature_importances_i_list.append(df_feature_importances_i)
 
             if type(df_test) == pd.DataFrame:
                 X_test = df_test[columns].values
                 if scaler_cls != None:
                     X_test = scaler.transform(X_test)
+                if 'FMRegression' in param['algorithm']['cls']:
+                    X_test = sparse.csc_matrix(X_test)
                 y_test_pred = model.predict(X_test)
                 df_test_pred_i = pd.DataFrame({fold_n: y_test_pred})
                 df_test_pred = pd.concat([df_test_pred, df_test_pred_i], axis=1)
