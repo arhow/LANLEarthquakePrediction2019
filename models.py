@@ -6,6 +6,7 @@ from keras import backend as K
 from keras import Sequential,Input, Model
 from keras.models import load_model
 from keras.regularizers import L1L2
+from keras import regularizers
 from keras.callbacks import ReduceLROnPlateau, EarlyStopping, ModelCheckpoint
 
 import pandas as pd
@@ -21,7 +22,7 @@ def create_path(base_dir, param):
 
 class KerasMLPRegressor(object):
     
-    def __init__(self, batch, input_dim, hidden_layer_sizes, activation, dropout, solver, metric, lr, sgd_momentum, sgd_decay, base_save_dir, alias):
+    def __init__(self, batch, input_dim, hidden_layer_sizes, activation, dropout, l1l2regularizer, solver, metric, lr, sgd_momentum, sgd_decay, base_save_dir, alias):
         
         self.batch = batch
         self.input_dim = input_dim
@@ -30,11 +31,12 @@ class KerasMLPRegressor(object):
         self.solver = solver
         self.metric = metric
         self.dropout = dropout
+        self.l1l2regularizer = l1l2regularizer
         self.lr = lr
         self.sgd_momentum = sgd_momentum
         self.sgd_decay = sgd_decay
         
-        self.regressor = self.build_graph(input_dim, hidden_layer_sizes, activation, dropout)
+        self.regressor = self.build_graph(input_dim, hidden_layer_sizes, activation, dropout, l1l2regularizer)
         self.compile_graph(self.regressor, solver, metric, lr, sgd_momentum, sgd_decay)
         
         self.alias = alias
@@ -46,17 +48,22 @@ class KerasMLPRegressor(object):
 
         return
     
-    def build_graph(self, input_dim, hidden_layer_sizes, activation, dropout):
+    def build_graph(self, input_dim, hidden_layer_sizes, activation, dropout, l1l2regularizer):
+        
+        if type(l1l2regularizer) == type(None):
+            regularizer=None
+        else:
+            regularizer = regularizers.l1_l2(l1l2regularizer)
     
         i = Input(shape = (input_dim,))
-        x = Dense(hidden_layer_sizes[0], activation=activation)(i)
+        x = Dense(hidden_layer_sizes[0], activation=activation, kernel_regularizer=regularizer, activity_regularizer=regularizer)(i)
         x = BatchNormalization()(x)
         x = Dropout(dropout)(x)
         for units in hidden_layer_sizes[1:-1]:
-            x = Dense(units, activation=activation)(x)
+            x = Dense(units, activation=activation, kernel_regularizer=regularizer, activity_regularizer=regularizer)(x)
             x = BatchNormalization()(x)
             x = Dropout(dropout)(x)
-        x = Dense(units, activation=activation)(x)
+        x = Dense(hidden_layer_sizes[-1], activation=activation, kernel_regularizer=regularizer, activity_regularizer=regularizer)(x)
         x = BatchNormalization()(x)
         y = Dense(1)(x)
         regressor = Model(inputs = [i], outputs = [y])
@@ -70,14 +77,14 @@ class KerasMLPRegressor(object):
         model.compile(optimizer=optimizer, loss=metric)
         return
     
-    def fit(self, X_train, y_train, eval_set, versbose=11, epochs=200, early_stopping_rounds=20):
+    def fit(self, X_train, y_train, eval_set, versbose=1, epochs=200, early_stopping_rounds=20):
         
 #         reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=early_stopping_rounds//4, min_lr=self.lr*1e-2)
         es_cb = EarlyStopping(monitor='val_loss', patience=early_stopping_rounds, verbose=1, mode='auto')
-        cp_cb = ModelCheckpoint(filepath = self.chkpt, monitor='val_loss', verbose=versbose/10, save_best_only=True, mode='auto')
+        cp_cb = ModelCheckpoint(filepath = self.chkpt, monitor='val_loss', verbose=versbose, save_best_only=True, mode='auto')
 
 #         his_train = self.regressor.fit_generator( generator =  train_gen, epochs = epochs,  verbose = 1,  validation_data = validation, callbacks = [cp_cb])
-        his_train = self.regressor.fit( X_train, y_train, epochs = epochs,  verbose = versbose%10,  validation_data = eval_set[0], callbacks = [cp_cb,es_cb])
+        his_train = self.regressor.fit( X_train, y_train, epochs = epochs,  verbose = versbose,  validation_data = eval_set[0], callbacks = [])
         df_train_his = pd.DataFrame(his_train.history)
         
 #         df_train_his = pd.DataFrame()
@@ -95,8 +102,9 @@ class KerasMLPRegressor(object):
             
         return df_train_his
     
-    def predict(self, X, use_best_epoch=True):
-        self.regressor.load_weights(self.chkpt)
+    def predict(self, X, use_best_epoch=False):
+        if use_best_epoch:
+            self.regressor.load_weights(self.chkpt)
         return self.regressor.predict(X)[:,0]
     
     

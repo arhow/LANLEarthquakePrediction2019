@@ -19,6 +19,7 @@ from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.linear_model import LogisticRegression, Ridge, Lasso
 from fastFM import als, mcmc, sgd
+from rgf.sklearn import RGFRegressor
 #from pyfm import pylibfm
 
 from scipy import sparse
@@ -224,12 +225,12 @@ class EP:
         sorted_columns = df_feature_importances.feature.tolist()
         return sorted_columns
 
-    def select_features_(df_train, param, trial, df_test=None, nfeats_best=10, nfeats_removed_per_try=10, key='average_model_weight'):
+    def select_features_(df_train, param, trial, df_test=None, nfeats_best=10, nfeats_removed_per_try=10, key='average_model_weight', remark=None):
         param_i = param.copy()
         while True:
-            df_his, df_feature_importances, df_valid_pred, df_test_pred = EP.process(df_train, param_i, df_test=df_test, trial=trial)
+            df_his, df_feature_importances, df_valid_pred, df_test_pred = EP.process(df_train, param_i, df_test=df_test, trial=trial, is_output_feature_importance=True, remark=remark)
             sorted_columns = EP.evaluate(df_feature_importances, key)
-            if len(sorted_columns) <= nfeats_best:
+            if (len(sorted_columns) <= nfeats_best)|(len(sorted_columns)-nfeats_removed_per_try<1):
                 break
             else:
                 param_i['columns'] = sorted_columns[:-nfeats_removed_per_try]
