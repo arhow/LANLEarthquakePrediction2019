@@ -96,39 +96,46 @@ class EP:
         df_feature_importances_i_list = []
 
         # stratified,group,timeseries
-
-        if param['kfold']['type'] == 'stratified':
-            assert 'label' in df_train.columns.tolist(), 'label is not in df_train'
-            folds = StratifiedKFold(n_splits=param['kfold']['n_splits'], shuffle=param['kfold']['shuffle'],
-                                    random_state=param['kfold']['random_state'])
-            splits = list(folds.split(df_train, df_train['label']))
-        elif param['kfold']['type'] == 'group':
-            assert 'group' in df_train.columns.tolist(), 'group is not in df_train'
-            folds = GroupKFold(n_splits=param['kfold']['n_splits'])
-            splits = list(folds.split(df_train, groups=df_train['group']))
-        elif param['kfold']['type'] == 'timeseries':
-            folds = TimeSeriesSplit(n_splits=param['kfold']['n_splits'])
-            splits = list(folds.split(df_train))
+        if 'splits' in param['kfold']:
+            splits = param['kfold']['splits']
         else:
-            folds = KFold(n_splits=param['kfold']['n_splits'], shuffle=param['kfold']['shuffle'],
-                          random_state=param['kfold']['random_state'])
-            splits = list(folds.split(df_train))
+            if param['kfold']['type'] == 'stratified':
+                assert 'label' in df_train.columns.tolist(), 'label is not in df_train'
+                folds = StratifiedKFold(n_splits=param['kfold']['n_splits'], shuffle=param['kfold']['shuffle'],
+                                        random_state=param['kfold']['random_state'])
+                splits = list(folds.split(df_train, df_train['label']))
+            elif param['kfold']['type'] == 'group':
+                assert 'group' in df_train.columns.tolist(), 'group is not in df_train'
+                folds = GroupKFold(n_splits=param['kfold']['n_splits'])
+                splits = list(folds.split(df_train, groups=df_train['group']))
+            elif param['kfold']['type'] == 'timeseries':
+                folds = TimeSeriesSplit(n_splits=param['kfold']['n_splits'])
+                splits = list(folds.split(df_train))
+            else:
+                folds = KFold(n_splits=param['kfold']['n_splits'], shuffle=param['kfold']['shuffle'],
+                              random_state=param['kfold']['random_state'])
+                splits = list(folds.split(df_train))
 
         scaler_cls = EP.str2class(param['scaler']['cls'])
         regressor_cls = EP.str2class(param['algorithm']['cls'])
         permutation_random_state = 42
         
         if scaler_cls != None:
-            scaler = scaler_cls()
+            scaler = scaler_cls(**param['scaler']['init'])
             if type(df_test) == pd.DataFrame:
                 scaler.fit(np.concatenate([df_train[columns].values, df_test[columns].values], axis=0))
             else:
                 scaler.fit(df_train[columns].values)
 
         for fold_n, (train_index, valid_index) in enumerate(splits):
-
-            X_train, X_valid = df_train[columns].values[train_index, :], df_train[columns].values[valid_index, :]
-            y_train, y_valid = df_train['y'].values[train_index], df_train['y'].values[valid_index]
+            
+            if (len(columns)==1)&(columns[0]=='X'):
+                X = np.array(df_train['X'].values.tolist())
+                X_train, X_valid = X[train_index, :], X[valid_index, :]
+                y_train, y_valid = df_train['y'].values[train_index], df_train['y'].values[valid_index]
+            else:
+                X_train, X_valid = df_train[columns].values[train_index, :], df_train[columns].values[valid_index, :]
+                y_train, y_valid = df_train['y'].values[train_index], df_train['y'].values[valid_index]
 
             if scaler_cls != None:
                 X_train = scaler.transform(X_train)
@@ -138,13 +145,15 @@ class EP:
             if 'alias' in list(algorithm_init_param.keys()):
                 algorithm_init_param['alias'] = algorithm_init_param['alias'] + '_{}'.format(fold_n)
             model = regressor_cls(**algorithm_init_param)
+            
             fit_param = param['algorithm']['fit'].copy()
-            if 'early_stopping_rounds' in fit_param:
+            if 'eval_set' in fit_param:
                 fit_param['eval_set'] = [(X_valid, y_valid)]
                 
             if 'FMRegression' in param['algorithm']['cls']:
                 X_train = sparse.csc_matrix(X_train)
                 X_valid = sparse.csc_matrix(X_valid)
+                
             model.fit(X_train, y_train, **fit_param)
 
             y_valid_pred = model.predict(X_valid)
@@ -169,11 +178,18 @@ class EP:
                 df_feature_importances_i_list.append(df_feature_importances_i)
 
             if type(df_test) == pd.DataFrame:
-                X_test = df_test[columns].values
+                
+                if (len(columns)==1)&(columns[0]=='X'):
+                    X_test = np.array(df_test['X'].values.tolist())
+                else:
+                    X_test = df_test[columns].values
+                
                 if scaler_cls != None:
                     X_test = scaler.transform(X_test)
+                    
                 if 'FMRegression' in param['algorithm']['cls']:
                     X_test = sparse.csc_matrix(X_test)
+                    
                 y_test_pred = model.predict(X_test)
                 df_test_pred_i = pd.DataFrame({fold_n: y_test_pred})
                 df_test_pred = pd.concat([df_test_pred, df_test_pred_i], axis=1)
