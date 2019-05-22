@@ -55,7 +55,7 @@ class EP:
                 'random_state': 1985,
             },
             'scaler': {
-                'cls': 'StandardScaler',
+#                 'cls': 'StandardScaler',
             },
             'algorithm': {
                 'cls': 'RandomForestRegressor',
@@ -116,7 +116,10 @@ class EP:
                               random_state=param['kfold']['random_state'])
                 splits = list(folds.split(df_train))
 
-        scaler_cls = EP.str2class(param['scaler']['cls'])
+        if type(param['scaler'])==type(None):
+            scaler_cls = None
+        else:
+            scaler_cls = EP.str2class(param['scaler']['cls'])
         regressor_cls = EP.str2class(param['algorithm']['cls'])
         permutation_random_state = 42
         

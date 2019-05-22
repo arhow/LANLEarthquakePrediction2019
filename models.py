@@ -1,6 +1,7 @@
 from keras.wrappers.scikit_learn import KerasRegressor
 
 import tensorflow as tf
+import keras
 from keras.wrappers.scikit_learn import KerasRegressor
 from keras import Sequential
 from keras.layers import Dense, LSTM, Dropout, GRU, Bidirectional, CuDNNGRU, CuDNNLSTM, RepeatVector, RepeatVector, concatenate,ConvLSTM2D
@@ -245,7 +246,48 @@ class KerasMLPRegressor(object):
             self.regressor.load_weights(self.chkpt)
         return self.regressor.predict(X)[:,0]
     
+class Generator(keras.utils.Sequence):
+
+    def __init__(self, x, y, x_mean, x_std, start_indexes, ts_length, batch_size, steps_per_epoch, shaking=True):
+        self.x = x
+        self.y = y
+        self.start_indexes = start_indexes
+        self.ts_length = ts_length
+        self.batch_size = batch_size
+        self.steps_per_epoch = steps_per_epoch
+        self.x_mean = x_mean
+        self.x_std = x_std
+        self.shaking = shaking
+        
+    def __len__(self):
+        return self.steps_per_epoch
+
+    def __getitem__(self, idx):
+        
+        start_indexes_epoch = np.random.choice(self.start_indexes, size=self.batch_size)
+        if self.shaking:
+            shifts = np.random.randint(0, int(self.ts_length*.2), size=self.batch_size) - int(self.ts_length*.1)
+        else:
+            shifts = np.zeros(self.batch_size)
+            
+        x_batch = np.empty((self.batch_size, self.ts_length))
+        y_batch = np.empty(self.batch_size, )
+
+        for i, start_idx in enumerate(start_indexes_epoch):
+            end = start_idx + shifts[i] + self.ts_length
+            if end < self.ts_length:
+                end = self.ts_length
+            if end >= self.x.shape[0]:
+                end = self.x.shape[0]
+            x_i = self.x[end-self.ts_length:end]
+            x_batch[i, :] = x_i
+            y_batch[i] = self.y[end - 1]
+            
+        x_batch = (x_batch - self.x_mean)/self.x_std
+
+        return np.expand_dims(x_batch, axis=2), y_batch
     
+
 class Keras1DCnnRegressor(object):
     
     def __init__(self, batch, timesteps, input_dim, cnn_layer_sizes, cnn_kernel_size, cnn_strides, cnn_activation, 
@@ -316,7 +358,35 @@ class Keras1DCnnRegressor(object):
         model.compile(optimizer=optimizer, loss=metric)
         return
     
-    def fit(self, X_train, y_train, eval_set, verbose=1, epochs=200, early_stopping_rounds=20):
+    def fit_generator(self, train_gen, eval_set, verbose=1, epochs=200):
+        
+        
+        df_train_his = pd.DataFrame()
+#         prev_val_loss = 999999
+        for i in np.arange(epochs):
+            if type(eval_set)==type(None):
+                validation_data = None
+            else:
+                validation_data = eval_set[0]
+            his_train = self.regressor.fit_generator( generator =  train_gen,  epochs = 1,  verbose = 0,  validation_data = validation_data, callbacks = [])
+            df_train_his_i = pd.DataFrame(his_train.history)
+            df_train_his_i['epochs'] = i
+            df_train_his = pd.concat([df_train_his, df_train_his_i], axis=0)
+            
+            if verbose > 0:
+                if validation_data == None:
+                    print(df_train_his_i.epochs.values, df_train_his_i.loss.values)
+                else:
+                    print(df_train_his_i.epochs.values, df_train_his_i.loss.values, df_train_his_i.val_loss.values)
+                
+#             if (df_train_his_i.val_loss.values[0] < prev_val_loss) & (self.chkpt!=None) :
+#                 prev_val_loss = df_train_his_i.val_loss.values[0]
+#                 self.regressor.save_weights(self.chkpt)
+        
+        df_train_his.to_csv(self.base_save_dir + '/train_his.csv', index=True)
+        return
+    
+    def fit(self, X_train, y_train, eval_set, verbose=1, epochs=200):
               
         df_train_his = pd.DataFrame()
 #         prev_val_loss = 999999
