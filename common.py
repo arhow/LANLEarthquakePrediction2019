@@ -27,6 +27,8 @@ from scipy import sparse
 import eli5
 from eli5.sklearn import PermutationImportance
 
+import copy
+
 from models import *
 
 class EP:
@@ -254,3 +256,31 @@ class EP:
             else:
                 param_i['columns'] = sorted_columns[:-nfeats_removed_per_try]
         return
+    
+    def revert_rfe(df_train, param, sorted_columns, df_test, trial, start_columns, limit=None, remark=None):
+    
+        # init cv_score and try only base feature
+        selected_columns = copy.deepcopy(start_columns)
+        if type(limit) == type(None):
+            limit = len(sorted_columns)
+        args = copy.deepcopy(param)
+        args['columns'] = selected_columns
+        df_his,  df_feature_importances, df_valid_pred, df_test_pred =  EP.process(df_train, args, df_test = df_test, trial=trial, remark=remark)
+        val_mae_mean = np.mean(df_his.valid)
+        cv_score = val_mae_mean
+
+        # add feature one by one and check cv score change
+        for idx,col in enumerate(sorted_columns):
+    #         if idx in start_column_index:
+    #             continue
+            args = copy.deepcopy(param)
+            args['columns'] = list(set(selected_columns + [col]))
+            df_his,  df_feature_importances, df_valid_pred, df_test_pred =  EP.process(df_train, args, df_test = df_test, trial=trial, remark=remark)
+            val_mae_mean = np.mean(df_his.valid)
+            if val_mae_mean < cv_score:
+                selected_columns.append(col)
+                cv_score = val_mae_mean
+            if len(selected_columns) >= limit:
+                break
+
+        return selected_columns
