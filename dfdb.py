@@ -81,13 +81,13 @@ class DFDB(object):
         decomposed_columns = [col for col in key_list if col not in columns_]
         
         if (len(idx_list) == 0) & (len(key_list) == 0):
-            df_sub =  self.db.loc[:,:].copy()
+            df_sub =  copy.deepcopy(self.db.loc[:,:])
         elif (len(idx_list) != 0) & (len(key_list) == 0):
-            df_sub =  self.db.loc[idx_list,:].copy()
+            df_sub =  copy.deepcopy(self.db.loc[idx_list,:])
         elif (len(idx_list) == 0) & (len(key_list) != 0):
-            df_sub =  self.db.loc[:,key_list].copy()
+            df_sub =  copy.deepcopy(self.db.loc[:,key_list])
         else:
-            df_sub =  self.db.loc[idx_list,key_list].copy()
+            df_sub =  copy.deepcopy(self.db.loc[idx_list,key_list])
             
         for col in decomposed_columns:
             keys = col.split('-')
