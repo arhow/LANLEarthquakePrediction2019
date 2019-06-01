@@ -272,9 +272,9 @@ class EP:
                 best_param = copy.deepcopy(param_)
 
         if best_score < score:
-            width_frist_rfe(df_train, best_param, trial, best_score, df_test, remark=remark)
+            EP.width_frist_rfe(df_train, best_param, trial, best_score, df_test, remark=remark)
 
-    return
+        return
     
     def revert_rfe(df_train, param, sorted_columns, df_test, trial, start_columns, limit=None, remark=None):
     
